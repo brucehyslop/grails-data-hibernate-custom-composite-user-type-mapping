@@ -2,64 +2,46 @@
 package com.example
 
 import org.hibernate.HibernateException
-import org.hibernate.engine.spi.SharedSessionContractImplementor
-import org.hibernate.type.LongType
-import org.hibernate.type.StringType
-import org.hibernate.type.Type
+import org.hibernate.metamodel.spi.ValueAccess
 import org.hibernate.usertype.CompositeUserType
 
-import java.sql.PreparedStatement
-import java.sql.ResultSet
-import java.sql.SQLException
-
-class MonetaryAmountType implements CompositeUserType {
+class MonetaryAmountType implements CompositeUserType<MonetaryAmount> {
 
     @Override
-    String[] getPropertyNames() {
-        return [ 'amount', 'currency' ] as String[]
-    }
-
-    @Override
-    Type[] getPropertyTypes() {
-        return [ LongType.INSTANCE, StringType.INSTANCE ] as Type[]
-    }
-
-    @Override
-    Object getPropertyValue(Object component, int property) throws HibernateException {
-        if (component == null) return null
-
-        MonetaryAmount amount = (MonetaryAmount) component
-        switch (property) {
-            case 0: return amount.amount
-            case 1: return amount.currency
-            default: throw new HibernateException("Invalid property index: " + property)
+    Object getPropertyValue(MonetaryAmount component, int property) {
+        // index follows the ALPHABETICAL order of the embeddable's attribute names
+        return switch (property) {
+            case 0 -> component.amount
+            case 1 -> component.currency.code
+            default -> throw new HibernateException("Unknown property " + property);
         }
     }
 
     @Override
-    void setPropertyValue(Object component, int property, Object value) throws HibernateException {
-        if (component == null) return
+    MonetaryAmount instantiate(ValueAccess values) {
+        // same ordering: amount = 0, currency = 1
+        Long amount = values.getValue(0, Long)
+        String currency = values.getValue(1, String)
 
-        MonetaryAmount amount = (MonetaryAmount) component
-        switch (property) {
-            case 0:
-                amount.amount = (Long) value
-                break
-            case 1:
-                amount.currency = (value as String).trim()
-                break
-            default:
-                throw new HibernateException("Invalid property index: " + property)
-        }
+        if (amount == null || currency == null) { return null }
+        return new MonetaryAmount(
+                amount: amount,
+                currency: Currency.of(currency.trim())
+        )
+    }
+
+    @Override
+    Class<?> embeddable() {
+        return MonetaryAmount
     }
 
     @Override
     Class returnedClass() {
-        return MonetaryAmount.class
+        return MonetaryAmount
     }
 
     @Override
-    boolean equals(Object x, Object y) throws HibernateException {
+    boolean equals(MonetaryAmount x, MonetaryAmount y) throws HibernateException {
         if (x == y) return true
         if (x == null || y == null) return false
 
@@ -70,67 +52,34 @@ class MonetaryAmountType implements CompositeUserType {
     }
 
     @Override
-    int hashCode(Object x) throws HibernateException {
+    int hashCode(MonetaryAmount x) throws HibernateException {
         return x?.hashCode() ?: 0
     }
 
     @Override
-    Object nullSafeGet(ResultSet rs, String[] names, SharedSessionContractImplementor session, Object owner)
-            throws HibernateException, SQLException {
-
-        Long amount = rs.getLong(names[0])
-        String currency = rs.getString(names[1])
-
-        if (rs.wasNull() || currency == null) {
-            return null
-        }
-
-        return new MonetaryAmount(amount: amount, currency: currency.trim())
-    }
-
-    @Override
-    void nullSafeSet(PreparedStatement st, Object value, int index, SharedSessionContractImplementor session)
-            throws HibernateException, SQLException {
-
-        if (value == null) {
-            st.setNull(index, LongType.INSTANCE.sqlType())
-            st.setNull(index + 1, StringType.INSTANCE.sqlType())
-        } else {
-
-            MonetaryAmount amount = (MonetaryAmount) value
-
-            st.setLong(index, amount)
-            st.setString(index + 1, amount.currency)
-        }
-    }
-
-    @Override
-    Object deepCopy(Object value) throws HibernateException {
-        if (value == null) return null
-
-        MonetaryAmount original = (MonetaryAmount) value
-        return new MonetaryAmount(amount: original.amount, currency: original.currency)
+    MonetaryAmount deepCopy(MonetaryAmount value) throws HibernateException {
+        return value
     }
 
     @Override
     boolean isMutable() {
-        return true
+        return false
     }
 
     @Override
-    Serializable disassemble(Object value, SharedSessionContractImplementor session) throws HibernateException {
-        return (Serializable) deepCopy(value)
+    Serializable disassemble(MonetaryAmount value) throws HibernateException {
+        return (Serializable) value
     }
 
     @Override
-    Object assemble(Serializable cached, SharedSessionContractImplementor session, Object owner)
+    MonetaryAmount assemble(Serializable cached, Object owner)
             throws HibernateException {
-        return deepCopy(cached)
+        return (MonetaryAmount) cached
     }
 
     @Override
-    Object replace(Object original, Object target, SharedSessionContractImplementor session, Object owner)
+    MonetaryAmount replace(MonetaryAmount detached, MonetaryAmount managed, Object owner)
             throws HibernateException {
-        return deepCopy(original)
+        return detached
     }
 }
